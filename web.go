@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gin-gonic/gin"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -379,6 +380,32 @@ func main() {
 					log.Printf("Put expired item %v back to queue %v", item, qid)
 				}
 			}
+		}
+		c.String(http.StatusOK, "")
+	})
+
+	router.POST("/bulk/:qid", func(c *gin.Context) {
+		r := redisPool.Get()
+		defer r.Close()
+		qid := sanitizeQid(c.Param("qid"))
+		body, _ := ioutil.ReadAll(c.Request.Body)
+
+		if queueExists(r, qid) {
+			r.Send("DEL", "queues-"+qid+"-queued", "queues-"+qid+"-pending",
+				"queues-"+qid+"-done")
+		}
+
+		r.Send("MULTI")
+		r.Send("SADD", "queues", qid)
+
+		for _, line := range strings.Split(string(body[:]), "\n") {
+			item := strings.Trim(line, " \r\n")
+			r.Send("RPush", "queues-"+qid+"-queued", item)
+		}
+
+		_, err := r.Do("EXEC")
+		if err != nil {
+			panic(err)
 		}
 		c.String(http.StatusOK, "")
 	})
