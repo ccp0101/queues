@@ -1,5 +1,5 @@
 {
-	"ImportPath": "queues",
+	"ImportPath": "github.com/ccp0101/queues",
 	"GoVersion": "go1.5",
 	"GodepVersion": "v69",
 	"Deps": [
