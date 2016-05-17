@@ -388,9 +388,10 @@ func main() {
 		r := redisPool.Get()
 		defer r.Close()
 		qid := sanitizeQid(c.Param("qid"))
+		clearQueue := c.Query("new") != ""
 		body, _ := ioutil.ReadAll(c.Request.Body)
 
-		if queueExists(r, qid) {
+		if clearQueue && queueExists(r, qid) {
 			r.Send("DEL", "queues-"+qid+"-queued", "queues-"+qid+"-pending",
 				"queues-"+qid+"-done")
 		}
