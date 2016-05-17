@@ -72,6 +72,14 @@ func main() {
 		c.String(http.StatusOK, "Sweet home!")
 	})
 
+	router.GET("/queues", func(c *gin.Context) {
+		queues := r.SMembers("queues")
+		if queues.Err() != nil {
+			panic(queues.Err())
+		}
+		c.String(http.StatusOK, strings.Join(queues.Val(), "\n"))
+	})
+
 	router.GET("/show/:qid", func(c *gin.Context) {
 		qid := c.Param("qid")
 
