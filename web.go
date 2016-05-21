@@ -234,8 +234,8 @@ func main() {
 					r := redisPool.Get()
 					defer r.Close()
 					defer wg.Done()
-					get, err := redis.String(r.Do("Get", "queues-"+qid+"-item-"+item+"-time"))
-					ttl, err := redis.Int(r.Do("TTL", "queues-"+qid+"-item-"+item+"-time"))
+					get, _ := redis.String(r.Do("Get", "queues-"+qid+"-item-"+item+"-time"))
+					ttl, _ := redis.Int(r.Do("TTL", "queues-"+qid+"-item-"+item+"-time"))
 					ret <- fmt.Sprintf("%s\t%s\t%d", item, get, ttl)
 				}(item)
 			}
