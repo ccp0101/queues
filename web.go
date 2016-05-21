@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,78 @@ import (
 )
 
 const Timeout = 300
+
+//ipRange - a structure that holds the start and end of a range of ip addresses
+type ipRange struct {
+	start net.IP
+	end   net.IP
+}
+
+// inRange - check to see if a given ip address is within a range given
+func inRange(r ipRange, ipAddress net.IP) bool {
+	// strcmp type byte comparison
+	if bytes.Compare(ipAddress, r.start) >= 0 && bytes.Compare(ipAddress, r.end) >= 0 {
+		return true
+	}
+	return false
+}
+
+var privateRanges = []ipRange{
+	ipRange{
+		start: net.ParseIP("10.0.0.0"),
+		end:   net.ParseIP("10.255.255.255"),
+	},
+	ipRange{
+		start: net.ParseIP("100.64.0.0"),
+		end:   net.ParseIP("100.127.255.255"),
+	},
+	ipRange{
+		start: net.ParseIP("172.16.0.0"),
+		end:   net.ParseIP("172.31.255.255"),
+	},
+	ipRange{
+		start: net.ParseIP("192.0.0.0"),
+		end:   net.ParseIP("192.0.0.255"),
+	},
+	ipRange{
+		start: net.ParseIP("192.168.0.0"),
+		end:   net.ParseIP("192.168.255.255"),
+	},
+	ipRange{
+		start: net.ParseIP("198.18.0.0"),
+		end:   net.ParseIP("198.19.255.255"),
+	},
+}
+
+func isPrivateSubnet(ipAddress net.IP) bool {
+	// iterate over all our ranges
+	for _, r := range privateRanges {
+		// check if this ip is in a private range
+		if inRange(r, ipAddress) {
+			return true
+		}
+	}
+	return false
+}
+
+func GetClientIPAdress(r *http.Request) string {
+	for _, h := range []string{"X-Forwarded-For", "X-Real-Ip"} {
+		addresses := strings.Split(r.Header.Get(h), ",")
+		// march from right to left until we get a public address
+		// that will be the address right before our proxy.
+		for i := len(addresses) - 1; i >= 0; i-- {
+			ip := addresses[i]
+			// header can contain spaces too, strip those out.
+			realIP := net.ParseIP(strings.Replace(ip, " ", "", -1))
+			if !realIP.IsGlobalUnicast() && !isPrivateSubnet(realIP) {
+				// bad address, go to next
+				continue
+			}
+			return ip
+		}
+	}
+	return ""
+}
 
 func ParseRedistogoUrl() (string, string) {
 	redisUrl := os.Getenv("REDIS_URL")
@@ -264,7 +337,8 @@ func main() {
 				c.String(http.StatusOK, "")
 			}
 
-			ip, _, _ := net.SplitHostPort(c.Request.RemoteAddr)
+			// ip, _, _ := net.SplitHostPort(c.Request.RemoteAddr)
+			ip := GetClientIPAdress(c.Request)
 			r.Send("MULTI")
 			r.Send("SET", "queues-"+qid+"-item-"+item+"-time", ip)
 			r.Send("EXPIRE", "queues-"+qid+"-item-"+item+"-time", Timeout)
