@@ -235,13 +235,7 @@ func main() {
 					defer r.Close()
 					defer wg.Done()
 					get, err := redis.String(r.Do("Get", "queues-"+qid+"-item-"+item+"-time"))
-					if err != nil {
-						panic(err)
-					}
 					ttl, err := redis.Int(r.Do("TTL", "queues-"+qid+"-item-"+item+"-time"))
-					if err != nil {
-						panic(err)
-					}
 					ret <- fmt.Sprintf("%s\t%s\t%d", item, get, ttl)
 				}(item)
 			}
